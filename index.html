@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Kanban Board</title>
+  <style>
+    :root {
+      --primary: #007bc1;
+      --primary-light: #e3f2fb;
+      --bg: #f9fafa;
+      --text: #222;
+      --card-bg: #ffffff;
+      --column-bg: #f1f5f8;
+      --border-radius: 8px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+    }
+
+    header {
+      background-color: var(--primary);
+      color: white;
+      padding: 1rem;
+      text-align: center;
+    }
+
+    .new-card-form {
+      background-color: white;
+      padding: 1rem 2rem;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: flex-end;
+    }
+
+    .new-card-form input,
+    .new-card-form textarea {
+      flex: 1 1 200px;
+      padding: 0.5rem;
+      border: 1px solid #ccc;
+      border-radius: var(--border-radius);
+      font-size: 1rem;
+    }
+
+    .new-card-form button {
+      padding: 0.6rem 1rem;
+      background-color: var(--primary);
+      border: none;
+      color: white;
+      border-radius: var(--border-radius);
+      cursor: pointer;
+      font-size: 1rem;
+    }
+
+    .new-card-form button:hover {
+      background-color: #005f99;
+    }
+
+    .board {
+      display: flex;
+      gap: 1rem;
+      padding: 1.5rem;
+    }
+
+    .column {
+      flex: 1;
+      background: var(--column-bg);
+      border-radius: var(--border-radius);
+      padding: 1rem;
+      min-height: 75vh;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    }
+
+    .column h2 {
+      font-size: 1.2rem;
+      margin-bottom: 1rem;
+      color: var(--primary);
+      text-align: center;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: var(--border-radius);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+      padding: 0.75rem;
+      margin-bottom: 1rem;
+      cursor: grab;
+    }
+
+    .card:active {
+      cursor: grabbing;
+    }
+
+    .card .title {
+      font-weight: bold;
+      margin-bottom: 0.4rem;
+    }
+
+    .card .meta {
+      font-size: 0.9rem;
+      color: #444;
+      margin-bottom: 0.3rem;
+    }
+
+    .card .meta span {
+      font-weight: bold;
+    }
+
+    .card button {
+      background: transparent;
+      border: none;
+      color: #b00;
+      cursor: pointer;
+      float: right;
+      font-size: 1rem;
+    }
+
+    .card button:hover {
+      color: #800;
+    }
+
+    .column.over {
+      background-color: var(--primary-light);
+      transition: background-color 0.3s;
+    }
+
+    [contenteditable]:focus {
+      outline: 2px solid var(--primary);
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Kanban Board</h1>
+  </header>
+
+  <div class="new-card-form">
+    <input id="title" placeholder="Title" />
+    <textarea id="description" rows="1" placeholder="Description"></textarea>
+    <input id="size" placeholder="Size (S, M, L)" />
+    <input id="assignee" placeholder="Assignee" />
+    <button onclick="addCard()">Add to Backlog</button>
+  </div>
+
+  <div class="board">
+    <div class="column" data-column="backlog">
+      <h2>Backlog</h2>
+    </div>
+    <div class="column" data-column="ready">
+      <h2>Ready</h2>
+    </div>
+    <div class="column" data-column="doing">
+      <h2>Doing</h2>
+    </div>
+    <div class="column" data-column="done">
+      <h2>Done</h2>
+    </div>
+  </div>
+
+  <script>
+    let draggedCardId = null;
+
+    function save() {
+      const cards = document.querySelectorAll('.card');
+      const data = [];
+      cards.forEach(card => {
+        const column = card.parentElement.getAttribute('data-column');
+        data.push({
+          id: card.id,
+          title: card.querySelector('.title').innerText,
+          description: card.querySelector('.description').innerText,
+          size: card.querySelector('.size').innerText.replace('Size: ', ''),
+          assignee: card.querySelector('.assignee').innerText.replace('Assignee: ', ''),
+          column: column
+        });
+      });
+      localStorage.setItem('kanbanCards', JSON.stringify(data));
+    }
+
+    function load() {
+      const data = JSON.parse(localStorage.getItem('kanbanCards') || '[]');
+      data.forEach(card => createCard(card));
+    }
+
+    function createCard({ id, title, description, size, assignee, column }) {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.id = id || 'card-' + Date.now();
+      card.draggable = true;
+      card.innerHTML = `
+        <div class="title" contenteditable>${title}</div>
+        <div class="meta description" contenteditable>${description}</div>
+        <div class="meta size" contenteditable>Size: ${size}</div>
+        <div class="meta assignee" contenteditable>Assignee: ${assignee}</div>
+        <button onclick="deleteCard('${card.id}')">✕</button>
+      `;
+
+      card.addEventListener('dragstart', () => {
+        draggedCardId = card.id;
+      });
+
+      card.addEventListener('input', save);
+
+      document.querySelector(`[data-column="${column}"]`).appendChild(card);
+    }
+
+    function addCard() {
+      const title = document.getElementById('title').value.trim();
+      const description = document.getElementById('description').value.trim();
+      const size = document.getElementById('size').value.trim();
+      const assignee = document.getElementById('assignee').value.trim();
+
+      if (!title) return;
+
+      createCard({
+        id: 'card-' + Date.now(),
+        title,
+        description,
+        size,
+        assignee,
+        column: 'backlog'
+      });
+
+      document.getElementById('title').value = '';
+      document.getElementById('description').value = '';
+      document.getElementById('size').value = '';
+      document.getElementById('assignee').value = '';
+
+      save();
+    }
+
+    function deleteCard(id) {
+      const card = document.getElementById(id);
+      if (card) {
+        card.remove();
+        save();
+      }
+    }
+
+    document.querySelectorAll('.column').forEach(col => {
+      col.addEventListener('dragover', e => {
+        e.preventDefault();
+        col.classList.add('over');
+      });
+
+      col.addEventListener('dragleave', () => {
+        col.classList.remove('over');
+      });
+
+      col.addEventListener('drop', () => {
+        const card = document.getElementById(draggedCardId);
+        if (card) {
+          col.appendChild(card);
+          save();
+        }
+        col.classList.remove('over');
+      });
+    });
+
+    window.onload = load;
+  </script>
+
+</body>
+</html>
